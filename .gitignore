@@ -1,0 +1,31 @@
+# 자동 생성 캐시, 바이트코드 파일
+__pycache__/
+*.py[cod]
+*$py.class
+
+# 가상환경 폴더(혹시 사용되면 무시)
+venv/
+env/
+.venv/
+
+# 슬랙봇 토큰, OpenAI키 등
+.env
+.env.*
+credentials.json
+*.pem
+
+# 로그파일이나 폴더가 생성될 경우
+*.log
+logs/
+
+# 운영체제에서 자동 생성하는 숨김파일
+.DS_Store
+Thumbs.db
+
+# VSCode, PyCharm 등 IDE 설정 폴더 (개인세팅 노출 방지)
+.vscode/
+.idea/
+
+# 임베딩 파일
+faq_embeddings.json
+
