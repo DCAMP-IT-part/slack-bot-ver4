@@ -80,7 +80,15 @@ jobs:
             --image=${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO_NAME }}/${{ env.IMAGE_NAME }}:latest \
             --platform=managed \
             --region=${{ env.REGION }} \
-            --allow-unauthenticated
+            --allow-unauthenticated \
+            --set-secrets=\
+          SLACK_BOT_TOKEN=SLACK_BOT_TOKEN:latest,\
+          SLACK_SIGNING_SECRET=SLACK_SIGNING_SECRET:latest,\
+          VERIFICATION_TOKEN=VERIFICATION_TOKEN:latest,\
+          OPENAI_API_KEY=OPENAI_API_KEY:latest,\
+          GOOGLE_APPS_SCRIPT_URL=GOOGLE_APPS_SCRIPT_URL:latest,\
+          GOOGLE_APPS_SCRIPT_URL_DATA_ALL=GOOGLE_APPS_SCRIPT_URL_DATA_ALL:latest,\
+          SECRET_TOKEN=SECRET_TOKEN:latest
 
       # (선택) Debug: Secrets이 있는지 체크
       - name: Debug Secrets (Check if GCP_SERVICE_ACCOUNT_KEY is accessible)
