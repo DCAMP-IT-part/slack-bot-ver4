@@ -9,8 +9,7 @@ SLACK_BOT_TOKEN      = os.getenv("SLACK_BOT_TOKEN")
 OPENAI_API_KEY       = os.getenv("OPENAI_API_KEY")
 
 # ADMIN_USER_ID        = os.getenv("ADMIN_USER_ID")
-GOOGLE_APPS_SCRIPT_URL = os.getenv("GOOGLE_APPS_SCRIPT_URL", "")
-SHEET_NAME_DEPT      = os.getenv("SHEET_NAME_DEPT", "담당자시트")
+GOOGLE_APPS_SCRIPT_URL_DATA_ALL = os.getenv("GOOGLE_APPS_SCRIPT_URL_DATA_ALL", "")
 
 SECRET_TOKEN = os.getenv("SECRET_TOKEN")
 

@@ -17,7 +17,7 @@ def register_slack_events(slack_events_adapter):
         dept_data = current_app.config.get("DEPT_DATA", [])
         event = event_data.get("event", {})
 
-        return #데이터 수집을 위해 return 입력 추후 삭제!
+        # return #데이터 수집을 위해 return 입력 추후 삭제!
 
         # (1) 스레드 내 메시지는 무시
         event_ts = event.get("ts")
@@ -70,7 +70,7 @@ def register_slack_events(slack_events_adapter):
             # 이 경우, 채널에는 답변하지 않고 담당자 DM만
         else:
             # FAQ가 존재하면 부서 분류
-            cat = classify_by_detail(text, dept_data, threshold=0.5)
+            cat = classify_by_detail(text, dept_data)
             print(f"[DEBUG] classify_by_detail -> cat={cat}")
 
         # (4) 만약 cat == "기타"라면 (FAQ 없음 or 분류 결과 기타)
@@ -125,7 +125,7 @@ FAQ Answer: {best_faq['answer']}
         # (6) 유관 부서 담당자에게 DM 보내기
         dm_text = (
             f"[{channel_name}] 채널에 문의가 들어왔습니다.\n"
-            f"카테고리: {cat}\n"
+            f"문의 내용 기반으로 <{cat}>카테고리로 분류되었습니다.\n"
             f"사용자 ID: <@{user_id}>\n"
             f"문의 내용: {text}"
         )
@@ -245,7 +245,7 @@ def build_system_prompt(lang: str) -> str:
 
 1) **첫 문장을 ‘안녕하세요, 디캠프 AI봇입니다.’라고 시작**하여, 답변자가 AI봇임을 명시합니다.
 
-2) **모든 문단은 빈 줄(\n\n)을 사이에 두고 구분**해, 읽기 좋게 작성합니다.
+2) **모든 문단은 빈 줄(\\n\\n)을 사이에 두고 구분**해, 읽기 좋게 작성합니다.
 
 3) **불필요한 쌍따옴표(")**는 쓰지 마세요. 꼭 필요한 인용이나 예시가 아닌 이상, 쌍따옴표 없이 표현합니다.
 
@@ -271,6 +271,14 @@ def build_system_prompt(lang: str) -> str:
    - 이런 상황은 답답하실 수 있겠어요. 해결 방법을 안내해 드리겠습니다.
    - 도움이 필요하신 것 같네요. 최대한 정확한 정보를 제공해 드리겠습니다.
 
+9) **봇이 “제가 직접 할 수 없습니다”라는 표현은 굳이 쓰지 않아도 됩니다**.
+   - 과거 유사 사례나 복잡한 절차 설명도 지양하고,
+   - “확인 후 조치해 드리겠습니다” 정도로 간단히 마무리합니다.
+
+10) **민감 정보(IP, MAC 주소 등) 수집 방법에 대해 구체적으로 언급하지 않습니다**.
+    - 공개 채널에 남겨 달라거나, DM으로 보내 달라고도 말하지 않습니다.
+    - 단지 “추가 정보 확인이 필요하다” 정도로만 간단히 안내하고 넘어갑니다.
+
 이 모든 지침을 지키면서, 최종적으로 한국어로만 답변을 작성하세요.
 """
     else:
@@ -293,13 +301,20 @@ def build_system_prompt(lang: str) -> str:
    Then provide a clear, accurate answer based on that data.
 
 7) The user is already contacting you via Slack.
-   Do not instruct them to visit any other inquiry board or contact another department (such as the facilities team) for further questions.
-   If any action is needed, assume it will be handled directly within this Slack channel.
+   Do not instruct them to visit another inquiry board or contact a separate department (such as facilities) for further questions.
+   Assume any needed actions can be handled in this channel.
 
 8) Example empathetic statements:
    - I understand that this issue must be frustrating.
    - It sounds like an inconvenience; let me help you with that.
    - Let me see how I can assist you with clear, data-based information.
+
+9) There's no need to say “I cannot do this directly.” 
+   Avoid lengthy past examples or complicated procedures; 
+   a concise assurance like “We will look into it and assist” is sufficient.
+
+10) For sensitive data (IP, MAC address, etc.), do not instruct the user to post it here or send it via DM. 
+    Simply mention that additional details might be required, without specifying how to share them.
 
 Please adhere to all these instructions, and ensure your final responses are in English only.
 """

@@ -6,7 +6,7 @@ from modules.openai_service import compute_embedding
 
 faq_embeddings = []
 
-def load_faq_embeddings(faq_file_path="data/membership_all_embeddings.json"):
+def load_faq_embeddings(faq_file_path="data/combined_slack_dcamp_embeddings.json"):
     global faq_embeddings
     try:
         with open(faq_file_path, "r", encoding="utf-8") as f:
