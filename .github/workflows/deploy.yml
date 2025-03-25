@@ -38,6 +38,7 @@ jobs:
 
       - name: Run tests
         run: pytest --maxfail=1 --disable-warnings -q
+        working-directory: slack-bot-ver4
         # 필요에 따라 테스트 커맨드를 수정하세요
 
   # 실제 배포는 "push to main"에서만
