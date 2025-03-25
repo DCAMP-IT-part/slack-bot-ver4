@@ -1,0 +1,92 @@
+name: CI/CD Pipeline for Slack Bot
+
+on:
+  push:
+    branches:
+      - main  # main 브랜치에 커밋(푸시)되면 실행 → CD(배포)
+  pull_request:
+    branches:
+      - main  # dev 등 다른 브랜치에서 main으로 PR 생성 시 실행 → CI(빌드&테스트)
+
+env:
+  PROJECT_ID: "dcamp-project"  # GCP 프로젝트 ID
+  REGION: "asia-northeast3"    # GCP 리전 (서울 리전)
+  REPO_NAME: "slackbot-repo"   # Artifact Registry 저장소 이름
+  IMAGE_NAME: "my-slack-bot"   # Docker 이미지 이름
+  SERVICE_NAME: "my-slack-bot" # Cloud Run 서비스 이름
+  
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source code
+        uses: actions/checkout@v3
+
+      - name: Set up Python 3.9
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.9"
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -e .
+          pip install -r requirements.txt
+
+      - name: Run tests
+        run: pytest --maxfail=1 --disable-warnings -q
+        # 필요에 따라 테스트 커맨드를 수정하세요
+
+  # 실제 배포는 "push to main"에서만
+  deploy:
+    needs: [build-and-test]
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/heads/main') }}
+    steps:
+      - name: Check out source code
+        uses: actions/checkout@v3
+
+      # 1) GCP 인증 (여기서 credentials_json에 Secrets를 전달)
+      - name: Authenticate with Google Cloud
+        uses: google-github-actions/auth@v1
+        with:
+          credentials_json: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
+
+      # 2) gcloud CLI 설치
+      - name: Setup gcloud CLI
+        uses: google-github-actions/setup-gcloud@v1
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+          version: latest
+          # 여러 컴포넌트는 공백으로 구분해 한 줄에 작성
+          # install_components: artifact-registry
+
+      # 3) Artifact Registry에 대한 Docker 인증 설정
+      - name: Configure Docker to use Google Cloud Artifact Registry
+        run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
+
+      # 4) Docker build & push
+      - name: Build and push Docker image
+        run: |
+          docker build -t ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO_NAME }}/${{ env.IMAGE_NAME }}:latest .
+          docker push ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO_NAME }}/${{ env.IMAGE_NAME }}:latest
+
+      # 5) Cloud Run 배포
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy ${{ env.SERVICE_NAME }} \
+            --image=${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO_NAME }}/${{ env.IMAGE_NAME }}:latest \
+            --platform=managed \
+            --region=${{ env.REGION }} \
+            --allow-unauthenticated
+
+      # (선택) Debug: Secrets이 있는지 체크
+      - name: Debug Secrets (Check if GCP_SERVICE_ACCOUNT_KEY is accessible)
+        run: |
+          if [ -z "${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}" ]; then
+            echo "❌ GCP_SERVICE_ACCOUNT_KEY is missing!"
+            exit 1
+          else
+            echo "✅ GCP_SERVICE_ACCOUNT_KEY is set correctly!"
+          fi
