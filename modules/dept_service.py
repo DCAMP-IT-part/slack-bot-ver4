@@ -70,7 +70,7 @@ def cosine_similarity(vecA, vecB):
     return float(np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b)))
 
 
-def classify_by_detail(user_text, dept_data, threshold=0.82):
+def classify_by_detail(user_text, dept_data, threshold=0.7):#0.82
     """
     user_text와 dept_data(시트 전체) 비교 후, 가장 유사한 '종류' 반환
     - dept_data 각 행의 'detail_embedding' 과 user_text 임베딩 비교
