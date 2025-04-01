@@ -87,7 +87,7 @@ flowchart LR
 
 --- 
 
-## 설정파일
+## 설정 파일
 
 - modules/config.py
   - 운영 환경에서는 GitHub Actions와 GCP Secret Manager에 저장된 민감 정보를 가져오도록 구성
