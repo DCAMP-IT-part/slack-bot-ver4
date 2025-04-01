@@ -4,17 +4,17 @@ import json
 import numpy as np
 from modules.openai_service import compute_embedding
 
-faq_embeddings = []
+data_embeddings = []
 
-def load_faq_embeddings(faq_file_path="data/combined_slack_dcamp_embeddings.json"):
-    global faq_embeddings
+def load_data_embeddings(faq_file_path="data/combined_slack_dcamp_embeddings.json"):
+    global data_embeddings
     try:
         with open(faq_file_path, "r", encoding="utf-8") as f:
-            faq_embeddings = json.load(f)
-        print(f"[INFO] Loaded {len(faq_embeddings)} FAQ embeddings.")
+            data_embeddings = json.load(f)
+        print(f"[INFO] Loaded {len(data_embeddings)} FAQ embeddings.")
     except Exception as e:
-        print("load_faq_embeddings error:", e)
-        faq_embeddings = []
+        print("load_data_embeddings error:", e)
+        data_embeddings = []
 
 def cosine_similarity(vecA, vecB):
     if not (vecA and vecB):
@@ -41,7 +41,7 @@ def search_similar_faqs(user_query: str, top_n: int = 3, min_sim: float = 0.82):
       ...
     ]
     """
-    if not faq_embeddings:
+    if not data_embeddings:
         return []
 
     user_emb = compute_embedding(user_query)
@@ -50,7 +50,7 @@ def search_similar_faqs(user_query: str, top_n: int = 3, min_sim: float = 0.82):
 
     # 모든 FAQ에 대해 유사도(score) 계산
     scored_faqs = []
-    for faq_item in faq_embeddings:
+    for faq_item in data_embeddings:
         sc = cosine_similarity(user_emb, faq_item["embedding"])
         scored_faqs.append((sc, faq_item))
 
