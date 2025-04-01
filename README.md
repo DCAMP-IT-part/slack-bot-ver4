@@ -6,10 +6,11 @@
 1. [프로젝트 개요](#프로젝트-개요)
 2. [주요 기능](#주요-기능)
 3. [아키텍처](#아키텍처)
-4. [사용 예시 (Workflow)](#사용-예시(Workflow))
+4. [사용 예시 (Workflow)](#사용-예시-workflow)
 5. [설정 파일](#설정-파일)
-6. [Threshold 기준](#Threshold-기준)
-7. [CI/CD](#CI/CD (GitHub Actions + GCP))
+6. [Threshold 기준](#threshold-기준)
+7. [CI/CD (GitHub Actions + GCP)](#cicd-github-actions--gcp)
+
 
 ---
 
