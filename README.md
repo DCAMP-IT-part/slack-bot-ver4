@@ -117,9 +117,10 @@ flowchart LR
   - GitHub Actions가 트리거되어 자동 빌드 & 배포를 수행합니다.
 
 2. 시크릿 관리
-  - GitHub Actions Secrets 기능에 GCP 서비스 계정 키, Slack Bot Token 등을 저장
-    - 또는 GCP Secret Manager에서 직접 키를 가져오는 스크립트/액션을 사용
-  - .env 파일은 원칙적으로 Repo에 포함되지 않으며, 민감 정보는 모두 시크릿으로 보관
+  - GitHub Actions Secrets에 GCP 서비스 계정 전체 인증 정보(JSON 형식) 저장
+  - GCP Secret Manager에 Slack 및 외부 연동용 시크릿 저장
+     - 예: SLACK_BOT_TOKEN, SLACK_SIGNING_SECRET, VERIFICATION_TOKEN, OPENAI_API_KEY, GOOGLE_APPS_SCRIPT_URL, SECRET_TOKEN 등
+  - .env 파일은 Git Repo에 포함되지 않으며, 로컬 개발용으로만 사용, 운영환경은 모두 시크릿으로 관리
 
 3. 배포 프로세스
    - Checkout: 소스 코드 가져오기
