@@ -221,39 +221,6 @@ def build_category_blocks(cat: str, final_msg: str):
                     "type": "button",
                     "text": {"type": "plain_text", "text": "계정 탈퇴"},
                     "action_id": "open_account_delete_modal"
-                },
-                {
-                    "type": "button",
-                    "text": {"type": "plain_text", "text": "회사/URL 정보 수정"},
-                    "action_id": "open_company_info_modal"
-                }
-            ]
-        }
-        return [base_block, actions_block]
-
-    elif cat == "멤버십":
-        actions_block = {
-            "type": "actions",
-            "elements": [
-                # 필요하면 멤버십 관련 버튼 추가
-                {
-                    "type": "button",
-                    "text": {"type": "plain_text", "text": "멤버십 변경/추가"},
-                    "action_id": "open_membership_modal"
-                }
-            ]
-        }
-        return [base_block, actions_block]
-
-    elif cat == "고정석/자율석/카드키":
-        actions_block = {
-            "type": "actions",
-            "elements": [
-                # 필요하면 고정석 관련 버튼 추가
-                {
-                    "type": "button",
-                    "text": {"type": "plain_text", "text": "고정석 좌석 변경"},
-                    "action_id": "open_fixedseat_modal"
                 }
             ]
         }
