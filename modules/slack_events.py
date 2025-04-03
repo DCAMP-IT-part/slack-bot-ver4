@@ -290,12 +290,12 @@ def get_base_cat(cat: str) -> str:
 def refine_category_by_location(cat: str, channel_name: str) -> str:
     """
     - '주차', '멤버십', '고정석/자율석/카드키' 등 위치가 있는 카테고리라면,
-      channel_name에 '선릉'/'마포'가 있으면 '(선릉)' '(마포)'로 덧붙임
-    - 이미 cat에 (선릉)/(마포) 붙어 있어도 remove_location_suffix로 제거 후 다시 부여
+      channel_name에 '선릉'/'마포'가 있으면 그에 맞게 (선릉)/(마포) 부여
+    - 없으면 기본은 (마포)로 간주
     """
     location_needed = ["주차", "멤버십", "고정석/자율석/카드키"]
 
-    base = remove_location_suffix(cat)  # 예: "주차(선릉)" => "주차"
+    base = remove_location_suffix(cat)
     if base in location_needed:
         channel_lower = channel_name.lower()
         if "마포" in channel_lower:
@@ -303,10 +303,8 @@ def refine_category_by_location(cat: str, channel_name: str) -> str:
         elif "선릉" in channel_lower:
             return f"{base}(선릉)"
         else:
-            # 채널명에 선릉/마포가 없으면 기존 cat 유지
-            # => 임베딩 결과 "멤버십(선릉)" 그대로
-            return cat
-
+            # 기본값: 마포
+            return f"{base}(마포)"
     return cat
 
 
