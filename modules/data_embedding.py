@@ -6,10 +6,10 @@ from modules.openai_service import compute_embedding
 
 data_embeddings = []
 
-def load_data_embeddings(faq_file_path="data/combined_slack_dcamp_embeddings.json"):
+def load_data_embeddings(data_file_path="data/combined_slack_dcamp_embeddings.json"):
     global data_embeddings
     try:
-        with open(faq_file_path, "r", encoding="utf-8") as f:
+        with open(data_file_path, "r", encoding="utf-8") as f:
             data_embeddings = json.load(f)
         print(f"[INFO] Loaded {len(data_embeddings)} FAQ embeddings.")
     except Exception as e:
@@ -23,7 +23,7 @@ def cosine_similarity(vecA, vecB):
     b = np.array(vecB)
     return float(np.dot(a, b) / (np.linalg.norm(a)*np.linalg.norm(b)))
 
-def search_similar_faqs(user_query: str, top_n: int = 3, min_sim: float = 0.82):
+def search_similar_data(user_query: str, top_n: int = 3, min_sim: float = 0.82):
     """
     user_query: 사용자 질문 (문자열)
     top_n: 반환할 FAQ 최대 개수
@@ -49,24 +49,24 @@ def search_similar_faqs(user_query: str, top_n: int = 3, min_sim: float = 0.82):
         return []
 
     # 모든 FAQ에 대해 유사도(score) 계산
-    scored_faqs = []
+    scored_data = []
     for faq_item in data_embeddings:
         sc = cosine_similarity(user_emb, faq_item["embedding"])
-        scored_faqs.append((sc, faq_item))
+        scored_data.append((sc, faq_item))
 
     # 점수 높은 순으로 정렬
-    scored_faqs.sort(key=lambda x: x[0], reverse=True)
+    scored_data.sort(key=lambda x: x[0], reverse=True)
 
-    if not scored_faqs:
+    if not scored_data:
         return []
 
     # 1등 점수가 min_sim 미만이면 매칭 없음 처리
-    best_score, _ = scored_faqs[0]
+    best_score, _ = scored_data[0]
     if best_score < min_sim:
         return []
 
     # min_sim 이상인 것들 중 상위 top_n만 추출
-    filtered = [(sc, item) for (sc, item) in scored_faqs if sc >= min_sim]
+    filtered = [(sc, item) for (sc, item) in scored_data if sc >= min_sim]
     selected = filtered[:top_n]
 
     # 결과 목록을 구성 (score 필드 추가)

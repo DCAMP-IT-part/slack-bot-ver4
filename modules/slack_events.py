@@ -3,10 +3,9 @@
 import re
 from flask import current_app
 from modules.slack_utils import send_message, send_blocks, send_dm_to_admin, get_channel_name
-from modules.data_embedding import search_similar_faqs
+from modules.data_embedding import search_similar_data
 from modules.openai_service import generate_chat_completion
-from modules.openai_service import compute_embedding  # 임베딩 직접 사용 시
-import numpy as np
+from modules.dept_service import classify_by_detail, match_dept_info
 
 processed_keys = set()
 
@@ -51,25 +50,29 @@ def register_slack_events(slack_events_adapter):
 
         # 부서 데이터 유무 검사
         if not dept_data:
-            parent_ts = thread_ts or msg_ts
+            parent_ts = event.get("thread_ts", msg_ts)
             send_message(channel_id, "담당자 시트 데이터를 불러오지 못했습니다.", thread_ts=parent_ts)
             return
 
         # (2) 사용자 입력 언어 감지
         lang = detect_language(text)
 
-        # (3) 데이터 검색
-        top_faqs = search_similar_faqs(text)
+        # (3) FAQ 검색
+        top_data = search_similar_data(text)
         
-        if not top_faqs:
-            # 데이터(FAQ)가 전혀 없으면 cat="기타"
+        if not top_data:
+            # FAQ가 전혀 없으면 cat="기타"
             cat = "기타"
         else:
-            # 데이터가 있으면 임베딩으로 부서 분류
-            cat = classify_by_detail_tiebreak(text, dept_data, channel_name=channel_name)
+            # FAQ가 있으면 임베딩으로 부서 분류
+            cat = classify_by_detail(text, dept_data)
             print(f"[DEBUG] classify_by_detail -> cat={cat}")
 
-        # (4) 만약 cat == "기타"라면 (FAQ 없음 or threshold 미달)
+        # (4) 선릉/마포 후처리 (주차/멤버십/고정석...에 한정)
+        cat = refine_category_by_location(cat, channel_name)
+        print(f"[DEBUG] final cat after location -> {cat}")
+
+        # (5) 만약 cat == "기타"라면 (FAQ 없음 or threshold 미달)
         # => 채널 답변 없이 DM만 보내고 끝낸다
         if cat == "기타":
             dm_text = (
@@ -81,21 +84,21 @@ def register_slack_events(slack_events_adapter):
             send_dm_to_admin(cat, dm_text)
             return
 
-        # (5) 데이터 존재 & cat != "기타" -> ChatCompletion 이용해 답변 생성
-        best_faq = top_faqs[0]
-        for faq in top_faqs:
-            faq.pop("embedding", None)  # embedding 제거 (불필요)
+        # (6) FAQ 존재 & cat != "기타" -> ChatCompletion 이용해 답변 생성
+        best_data = top_data[0]
+        for data in top_data:
+            data.pop("embedding", None)  # embedding 제거 (불필요)
 
         system_prompt = build_system_prompt(lang)
         user_prompt = f"""User query: {text}
 
-FAQ Question: {best_faq['question']}
-FAQ Answer: {best_faq['answer']}
+FAQ Question: {best_data['question']}
+FAQ Answer: {best_data['answer']}
 """
         raw_answer = generate_chat_completion(system_prompt, user_prompt) or ""
         answer_body = post_process(raw_answer)
 
-        # (6) 최종 메시지 구성
+        # (7) 최종 메시지 구성
         if lang == "ko":
             final_msg = (
                 f"{answer_body}\n\n"
@@ -107,8 +110,8 @@ FAQ Answer: {best_faq['answer']}
                 "Please wait a moment, the relevant department will post a reply soon."
             )
 
-        # (7) 블록 빌드 시에는 cat가 "주차(선릉)" 등일 수 있으므로,
-        #     실제 블록은 "주차", "네트워크", "홈페이지" 등 기본값을 써야 매칭 가능
+        # (8) 블록 빌드 시에는 cat가 "주차(선릉)" 등일 수 있으므로,
+        #     실제 블록은 "주차", "멤버십", "고정석/자율석/카드키", etc...
         base_cat = get_base_cat(cat)
         blocks = build_category_blocks(base_cat, final_msg)
 
@@ -118,7 +121,7 @@ FAQ Answer: {best_faq['answer']}
         else:
             send_message(channel_id, final_msg, thread_ts=parent_ts)
 
-        # (8) 담당자 DM
+        # (9) 담당자 DM
         dm_text = (
             f"[{channel_name}] 채널에 문의가 들어왔습니다.\n"
             f"문의 내용 기반으로 <{cat}> 카테고리로 분류되었습니다.\n"
@@ -129,6 +132,10 @@ FAQ Answer: {best_faq['answer']}
 
 
 def build_category_blocks(cat: str, final_msg: str):
+    """
+    기존 cat: "주차", "시설/비품", "네트워크", "홈페이지", "멤버십", "고정석/자율석/카드키", ...
+    버튼/블록을 반환.
+    """
     combined_text = (
         f"{final_msg}\n\n"
         "아래 버튼에서 해당하는 항목을 선택하여 정보를 입력해 주세요.\n"
@@ -224,26 +231,94 @@ def build_category_blocks(cat: str, final_msg: str):
         }
         return [base_block, actions_block]
 
-    # 기타
+    elif cat == "멤버십":
+        actions_block = {
+            "type": "actions",
+            "elements": [
+                # 필요하면 멤버십 관련 버튼 추가
+                {
+                    "type": "button",
+                    "text": {"type": "plain_text", "text": "멤버십 변경/추가"},
+                    "action_id": "open_membership_modal"
+                }
+            ]
+        }
+        return [base_block, actions_block]
+
+    elif cat == "고정석/자율석/카드키":
+        actions_block = {
+            "type": "actions",
+            "elements": [
+                # 필요하면 고정석 관련 버튼 추가
+                {
+                    "type": "button",
+                    "text": {"type": "plain_text", "text": "고정석 좌석 변경"},
+                    "action_id": "open_fixedseat_modal"
+                }
+            ]
+        }
+        return [base_block, actions_block]
+
+    # 기타 등
     return None
 
 
 def get_base_cat(cat: str) -> str:
     """
-    "주차(선릉)" or "주차(마포)", "멤버십(선릉)" 등으로 들어올 수 있으므로
-    블록 빌드를 위해 기본값("주차", "멤버십", "네트워크" 등)으로 변환.
+    "주차(선릉)" or "주차(마포)" => "주차"
+    "멤버십(선릉)" or "멤버십(마포)" => "멤버십"
+    "고정석/자율석/카드키(선릉)" => "고정석/자율석/카드키"
+    나머지는 원본 cat 리턴
     """
-    if cat.startswith("주차"):
+    base = remove_location_suffix(cat)
+
+    if base.startswith("주차"):
         return "주차"
-    elif cat.startswith("시설/비품"):
+    elif base.startswith("시설/비품"):
         return "시설/비품"
-    elif cat.startswith("네트워크"):
+    elif base.startswith("네트워크"):
         return "네트워크"
-    elif cat.startswith("홈페이지"):
+    elif base.startswith("홈페이지"):
         return "홈페이지"
-    elif cat.startswith("멤버십"):
+    elif base.startswith("멤버십"):
         return "멤버십"
-    # etc...
+    elif base.startswith("고정석/자율석/카드키"):
+        return "고정석/자율석/카드키"
+    return cat
+
+
+def refine_category_by_location(cat: str, channel_name: str) -> str:
+    """
+    - '주차', '멤버십', '고정석/자율석/카드키' 등 위치가 있는 카테고리라면,
+      channel_name에 '선릉'/'마포'가 있으면 '(선릉)' '(마포)'로 덧붙임
+    - 이미 cat에 (선릉)/(마포) 붙어 있어도 remove_location_suffix로 제거 후 다시 부여
+    """
+    location_needed = ["주차", "멤버십", "고정석/자율석/카드키"]
+
+    base = remove_location_suffix(cat)  # 예: "주차(선릉)" => "주차"
+    if base in location_needed:
+        channel_lower = channel_name.lower()
+        if "마포" in channel_lower:
+            return f"{base}(마포)"
+        elif "선릉" in channel_lower:
+            return f"{base}(선릉)"
+        else:
+            # 채널명에 선릉/마포가 없으면 기존 cat 유지
+            # => 임베딩 결과 "멤버십(선릉)" 그대로
+            return cat
+
+    return cat
+
+
+def remove_location_suffix(cat: str) -> str:
+    """
+    "주차(선릉)" => "주차"
+    "멤버십(마포)" => "멤버십"
+    "고정석/자율석/카드키(선릉)" => "고정석/자율석/카드키"
+    그 외는 그대로
+    """
+    if "(" in cat:
+        return cat.split("(")[0].strip()
     return cat
 
 
@@ -257,12 +332,76 @@ def build_system_prompt(lang: str) -> str:
     if lang == "ko":
         return """당신은 내부 서비스에서 작동하는 한국어 전용 AI 어시스턴트입니다. 답변을 작성할 때 다음 지침을 준수하세요.
 
-1) 첫 문장을 ‘안녕하세요, 디캠프 AI봇입니다.’로 시작...
-(중략)
+1) **첫 문장을 ‘안녕하세요, 디캠프 AI봇입니다.’라고 시작**하여, 답변자가 AI봇임을 명시합니다.
+
+2) **모든 문단은 빈 줄(\\n\\n)을 사이에 두고 구분**해, 읽기 좋게 작성합니다.
+
+3) **불필요한 쌍따옴표(")**는 쓰지 마세요. 꼭 필요한 인용이나 예시가 아닌 이상, 쌍따옴표 없이 표현합니다.
+
+4) 만약 사용자의 질문에 대해 **적절한 데이터가 전혀 없다면**, 
+   해당 질문에 대해 데이터 기반 답변을 드릴 수 없습니다.
+   라고만 간단히 안내하세요.
+   (과도한 잡담이나 상식, 사적인 표현을 덧붙이지 않습니다)
+
+5) 사용자가 **회사 내부 업무 범위를 벗어난 질문**을 했다면,
+   해당 범위 밖이라 답변이 어렵습니다.
+   정도로 짧고 정중하게 안내하세요.
+
+6) 사용자의 질문에 대응할 데이터가 있다면, 
+   질문 내용을 충분히 공감한 뒤,
+   **친절하고 정확하게** 그 데이터를 바탕으로 답변하세요.
+
+7) 이미 사용자는 이 채널(Slack)을 통해 문의하고 있습니다.
+   - “문의 게시판에 글을 남기라”거나, “특정 부서(시설팀 등)에 추가 문의를 하라”는 류의 안내 문구는 넣지 않습니다.
+   - 필요한 조치가 있다면, 이 채널에서 직접 안내하거나 처리하는 것으로 가정합니다.
+
+8) **예시 (공감 문구)**:
+   - 불편을 겪고 계시군요. 빠르게 도와드리겠습니다.
+   - 이런 상황은 답답하실 수 있겠어요. 해결 방법을 안내해 드리겠습니다.
+   - 도움이 필요하신 것 같네요. 최대한 정확한 정보를 제공해 드리겠습니다.
+
+9) **봇이 “제가 직접 할 수 없습니다”라는 표현은 굳이 쓰지 않아도 됩니다**.
+   - 과도한 예시나 복잡한 절차 설명도 지양하고,
+   - “확인 후 조치해 드리겠습니다” 정도로 간단히 마무리해주세요.
+
+10) **민감 정보(IP, MAC 등) 전달 방법을 구체적으로 언급하지 않습니다**.
+    - 공개 채널에서 보내달라, DM으로 달라 등은 금지.
+    - 단순히 “추가 정보가 필요할 수 있다” 수준으로만 언급.
+
+이 모든 지침을 지키면서, 최종적으로 한국어로만 답변을 작성하세요.
 """
     else:
-        return """You are an English-only AI assistant operating within an internal service context...
-(중략)
+        return """You are an English-only AI assistant operating within an internal service context. Please follow these guidelines when composing your answers:
+
+1) Begin your response with: "Hello, I'm an AI assistant."
+
+2) Separate paragraphs with a blank line (\\n\\n).
+
+3) Do not use unnecessary quotation marks ("). Avoid them unless absolutely needed.
+
+4) If you have no data to answer the user's query, say briefly: 
+   I cannot provide a data-based answer to this question.
+
+5) If the question is beyond internal scope, 
+   state politely This is outside my scope, so I cannot provide an answer.
+
+6) If relevant data exists, empathize with the user's concern and then provide a clear, accurate response.
+
+7) The user is already on Slack with you. 
+   Do not instruct them to post on another board or contact another department separately.
+
+8) Example empathetic statements:
+   - I see how that could be frustrating.
+   - Let me help clarify that issue.
+   - I'll provide the best data-based information for you.
+
+9) You do not need to say “I cannot do this directly.” 
+   Keep it concise and solution-focused.
+
+10) For sensitive data (IP, MAC, etc.), do not instruct the user to share them publicly or in DM. 
+    Just mention that additional details might be required.
+
+Ensure your final answers are in English only.
 """
 
 
@@ -270,70 +409,3 @@ def post_process(answer: str) -> str:
     cleaned = answer.replace("[ko]", "").replace("[en]", "")
     cleaned = cleaned.replace("[한국어]", "").replace("[English]", "")
     return cleaned.strip()
-
-
-###################################
-# 아래: 동점 발생 시 채널명으로 분류하는 함수 예시
-###################################
-
-def classify_by_detail_tiebreak(user_text: str, dept_data: list, channel_name: str, threshold=0.82) -> str:
-    """
-    임베딩 점수가 threshold 이상인 항목 중 가장 높은 스코어(동점 포함)를 찾되,
-    '선릉' / '마포'가 들어있는 채널인 경우 해당 키워드를 포함한 부서를 우선 결정.
-    """
-    if not dept_data:
-        return "기타"
-
-    user_emb = compute_embedding(user_text)
-    if not user_emb:
-        return "기타"
-
-    # 스코어 계산
-    scored_rows = []
-    for row in dept_data:
-        detail_emb = row.get("detail_embedding")
-        if not detail_emb:
-            continue
-        score = cosine_similarity(user_emb, detail_emb)
-        if score >= threshold:
-            scored_rows.append((score, row))
-
-    # threshold 이상이 하나도 없으면 => "기타"
-    if not scored_rows:
-        return "기타"
-
-    # 스코어 높은 순 정렬
-    scored_rows.sort(key=lambda x: x[0], reverse=True)
-    top_score = scored_rows[0][0]
-
-    # 1등과 똑같은 스코어(동점)인 항목들 추출
-    tied = [(s, r) for (s, r) in scored_rows if abs(s - top_score) < 1e-9]
-
-    if len(tied) == 1:
-        # 단독 1등인 경우
-        return tied[0][1].get("종류", "기타")
-
-    # 동점이 여러 개라면, 채널명에 "선릉"/"마포"가 있는지 확인
-    ch_lower = channel_name.lower()  # 소문자로 변환
-    if "선릉" in ch_lower:
-        # tied 중에서 "(선릉)"이 들어간 종류를 우선 선택
-        for s, r in tied:
-            cat_name = r.get("종류", "")
-            if "(선릉)" in cat_name:
-                return cat_name
-    elif "마포" in ch_lower:
-        for s, r in tied:
-            cat_name = r.get("종류", "")
-            if "(마포)" in cat_name:
-                return cat_name
-
-    # 그래도 못 찾으면 tied[0]
-    return tied[0][1].get("종류", "기타")
-
-
-def cosine_similarity(vecA, vecB):
-    if not (vecA and vecB):
-        return 0.0
-    a = np.array(vecA)
-    b = np.array(vecB)
-    return float(np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b)))
