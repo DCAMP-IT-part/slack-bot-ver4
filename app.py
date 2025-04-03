@@ -3,7 +3,7 @@ from flask import Flask, Blueprint
 from slackeventsapi import SlackEventAdapter
 
 from modules.config import SLACK_SIGNING_SECRET
-from modules.faq_embedding import load_faq_embeddings
+from modules.data_embedding import load_data_embeddings
 from modules.dept_service import fetch_dept_data
 from modules.slack_events import register_slack_events
 from modules.slack_actions import actions_bp
@@ -15,7 +15,7 @@ def create_app():
     app = Flask(__name__)
 
     # 1) FAQ 임베딩 로드
-    load_faq_embeddings()
+    load_data_embeddings()
 
     # 2) 부서 데이터 로드 후 Flask config에 저장
     dept_data = fetch_dept_data()
