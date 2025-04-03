@@ -59,7 +59,7 @@ def cosine_similarity(vecA, vecB):
     return float(np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b)))
 
 
-def classify_by_detail(user_text, dept_data, threshold=0.82):
+def classify_by_detail(user_text, dept_data, threshold=0.7):
     """
     사용자 질문(user_text) 임베딩 vs. dept_data 임베딩 비교,
     - "기타" 행은 임베딩 스킵
