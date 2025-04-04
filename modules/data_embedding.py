@@ -23,7 +23,7 @@ def cosine_similarity(vecA, vecB):
     b = np.array(vecB)
     return float(np.dot(a, b) / (np.linalg.norm(a)*np.linalg.norm(b)))
 
-def search_similar_data(user_query: str, top_n: int = 3, min_sim: float = 0.82):
+def search_similar_data(user_query: str, top_n: int = 3, min_sim: float = 0.77):
     """
     user_query: 사용자 질문 (문자열)
     top_n: 반환할 FAQ 최대 개수
